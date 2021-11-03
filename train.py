@@ -7,7 +7,7 @@ from torchvision.transforms import ToTensor
 from torchvision.utils import make_grid
 import os
 import shutil
-from models.ConvolutionalAE import AEModel
+from models.VariationalAE import AEModel
 
 dev = "cuda" if torch.cuda.is_available() else "cpu"
 print("PyTorch", torch.__version__, "and using", dev)
@@ -93,7 +93,7 @@ for epoch in range(begin, begin + n_epochs, 1):
         x, _ = next(iter(valid_loader))
         x = x.to(dev)
         h = model(x)
-        encoded, decoded = h
+        encoded, decoded = h[0], h[1]
 
         writer.add_image("_input_images", make_grid(x), epoch)
         writer.add_image("_reconstructed_images", make_grid(decoded), epoch)

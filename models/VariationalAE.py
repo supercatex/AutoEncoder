@@ -19,8 +19,8 @@ class AEModel(nn.Module):
             nn.MaxPool2d(2, 2)
         )
 
-        self.m = nn.Linear(16 * 4 * 4, 16 * 4 * 4)
-        self.s = nn.Linear(16 * 4 * 4, 16 * 4 * 4)
+        self.m_layer = nn.Linear(16 * 4 * 4, 16 * 4 * 4)
+        self.s_layer = nn.Linear(16 * 4 * 4, 16 * 4 * 4)
 
         self.decoder = torch.nn.Sequential(
             nn.ConvTranspose2d(16, 32, (2, 2), stride=(2, 2), groups=1),
@@ -33,12 +33,14 @@ class AEModel(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x):
+    def forward(self, x, e = None):
         batch_size = x.size(0)
         x = self.encoder(x).view(batch_size, -1)
-        m = self.m(x)
-        s = self.s(x)
-        e = torch.randn(x.shape)
+        m = self.m_layer(x)
+        s = self.s_layer(x)
+        if e is None:
+            e = torch.randn(batch_size, 16 * 4 * 4)
+            e = e.to("cuda")
         encoded = e * s + m
         encoded = encoded.view(batch_size, 16, 4, 4)
         decoded = self.decoder(encoded)
@@ -47,8 +49,8 @@ class AEModel(nn.Module):
     @classmethod
     def criterion(cls, h, y):
         encoded, decoded, m, s = h
-        h_loss = torch.mean((h - y) ** 2) * 32 * 32
-        v_loss = torch.sum(torch.exp(s) - (1 - s) + torch.square(m), -1)
+        h_loss = torch.mean((decoded - y) ** 2) * 32 * 32
+        v_loss = torch.sum(torch.exp(s) - (1 + s) + torch.square(m), -1)
         return torch.mean(h_loss + v_loss)
 
 if __name__ == "__main__":
