@@ -7,17 +7,19 @@ from torchvision.transforms import ToTensor
 from torchvision.utils import make_grid
 import os
 import shutil
-from models.ConvAutoEncoder import ConvAutoEncoder
+from models.ConvolutionalAE import AEModel
 
 dev = "cuda" if torch.cuda.is_available() else "cpu"
 print("PyTorch", torch.__version__, "and using", dev)
 
-model_name = "model.pth"
+# Args
+begin = 1
+n_epochs = 3000
+lr = 0.005
+batch_size = 64
 data_root = "./data/cifar10/"
-log_dir = "./logs/" + model_name
 
 # Prepare your dataset.
-batch_size = 64
 print("Training ", end="")
 train_data = CIFAR10(
     root=data_root, train=True, download=True,
@@ -33,22 +35,22 @@ valid_data = CIFAR10(
 valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=True)
 
 # Prepare your model.
-model = ConvAutoEncoder()
-criterion = model.loss_fn
-optimizer = optim.Adam(model.parameters(), lr=0.005)
-
-if os.path.exists(model_name):
-    # model.load_state_dict(torch.load(model_name))
-    os.remove(model_name)
+model = AEModel()
+if os.path.exists(model.name + ".pth"):
+    if begin == 1:
+        os.remove(model.name + ".pth")
+    else:
+        model.load_state_dict(torch.load(model.name + ".pth"))
 model.to(dev)
+optimizer = optim.Adam(model.parameters(), lr=lr)
 
-begin = 1
-n_epochs = 3000
-
+# Logging history.
+log_dir = "./logs/" + model.name
 if begin == 1 and os.path.exists(log_dir):
     shutil.rmtree(log_dir)
 writer = SummaryWriter(log_dir)
 
+# Prepare your training epochs.
 for epoch in range(begin, begin + n_epochs, 1):
     # Training
     model.train()
@@ -56,8 +58,8 @@ for epoch in range(begin, begin + n_epochs, 1):
     for batch, data in enumerate(train_loader):
         x = data[0].to(dev)
 
-        _, h = model(x)
-        loss = criterion(h, x)
+        h = model(x)
+        loss = model.criterion(h, x)
         train_loss += loss.item()
 
         optimizer.zero_grad()
@@ -70,12 +72,12 @@ for epoch in range(begin, begin + n_epochs, 1):
     for batch, data in enumerate(valid_loader):
         x = data[0].to(dev)
 
-        _, h = model(x)
-        loss = criterion(h, x)
+        h = model(x)
+        loss = model.criterion(h, x)
         valid_loss += loss.item()
 
     # Saving model and logging training history.
-    torch.save(model.state_dict(), model_name)
+    torch.save(model.state_dict(), model.name + ".pth")
     train_loss /= len(train_loader)
     valid_loss /= len(valid_loader)
     print("Epoch: %d/%d, Train_Loss: %.6f, Valid_Loss: %.6f" % (
@@ -87,13 +89,14 @@ for epoch in range(begin, begin + n_epochs, 1):
         "valid_loss": valid_loss
     }, epoch)
 
-    if epoch == 1 or epoch % 50 == 0:
+    if epoch == 1 or epoch % 10 == 0:
         x, _ = next(iter(valid_loader))
         x = x.to(dev)
-        _, h = model(x)
+        h = model(x)
+        encoded, decoded = h
 
         writer.add_image("_input_images", make_grid(x), epoch)
-        writer.add_image("_reconstructed_images", make_grid(h), epoch)
+        writer.add_image("_reconstructed_images", make_grid(decoded), epoch)
         if epoch == 1: writer.add_graph(model, x)
 
 import time
