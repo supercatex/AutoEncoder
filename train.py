@@ -15,8 +15,8 @@ print("PyTorch", torch.__version__, "and using", dev)
 # Args
 begin = 1
 n_epochs = 3000
-lr = 0.005
-batch_size = 64
+lr = 1e-4
+batch_size = 128
 data_root = "./data/cifar10/"
 
 # Prepare your dataset.
@@ -42,7 +42,7 @@ if os.path.exists(model.name + ".pth"):
     else:
         model.load_state_dict(torch.load(model.name + ".pth"))
 model.to(dev)
-optimizer = optim.Adam(model.parameters(), lr=lr)
+optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
 
 # Logging history.
 log_dir = "./logs/" + model.name
@@ -56,30 +56,40 @@ for epoch in range(begin, begin + n_epochs, 1):
     model.train()
     train_loss = 0.0
     for batch, data in enumerate(train_loader):
-        x = data[0].to(dev)
-
-        h = model(x)
-        loss = model.criterion(h, x)
-        train_loss += loss.item()
+        x, _ = data
+        x = x.to(dev)
 
         optimizer.zero_grad()
+        x_hat, (mean, logvar, z) = model(x)
+
+        reconstruction_loss = model.reconstruction_loss(x_hat, x)
+        kl_divergence_loss = model.kl_divergence_loss(mean, logvar)
+        loss = reconstruction_loss + kl_divergence_loss
+
         loss.backward()
         optimizer.step()
+
+        train_loss += loss.item()
 
     # Validating
     model.eval()
     valid_loss = 0.0
     for batch, data in enumerate(valid_loader):
-        x = data[0].to(dev)
+        x, _ = data
+        x = x.to(dev)
 
-        h = model(x)
-        loss = model.criterion(h, x)
+        x_hat, (mean, logvar, z) = model(x)
+
+        reconstruction_loss = model.reconstruction_loss(x_hat, x)
+        kl_divergence_loss = model.kl_divergence_loss(mean, logvar)
+        loss = reconstruction_loss + kl_divergence_loss
+
         valid_loss += loss.item()
 
     # Saving model and logging training history.
     torch.save(model.state_dict(), model.name + ".pth")
-    train_loss /= len(train_loader)
-    valid_loss /= len(valid_loader)
+    train_loss /= len(train_data)
+    valid_loss /= len(valid_data)
     print("Epoch: %d/%d, Train_Loss: %.6f, Valid_Loss: %.6f" % (
         epoch, n_epochs,
         train_loss, valid_loss
@@ -92,11 +102,10 @@ for epoch in range(begin, begin + n_epochs, 1):
     if epoch == 1 or epoch % 10 == 0:
         x, _ = next(iter(valid_loader))
         x = x.to(dev)
-        h = model(x)
-        encoded, decoded = h[0], h[1]
+        x_hat, (mean, logvar, z) = model(x)
 
         writer.add_image("_input_images", make_grid(x), epoch)
-        writer.add_image("_reconstructed_images", make_grid(decoded), epoch)
+        writer.add_image("_reconstructed_images", make_grid(x_hat), epoch)
         if epoch == 1: writer.add_graph(model, x)
 
 import time
