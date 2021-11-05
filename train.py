@@ -98,8 +98,8 @@ for epoch in range(begin, begin + n_epochs, 1):
     valid_loss /= len(valid_data)
     train_loss_1 /= len(train_data)
     train_loss_2 /= len(train_data)
-    valid_loss_1 /= len(train_data)
-    valid_loss_2 /= len(train_data)
+    valid_loss_1 /= len(valid_data)
+    valid_loss_2 /= len(valid_data)
     print("Epoch: %d/%d, Train_Loss: %.6f, Valid_Loss: %.6f" % (
         epoch, n_epochs,
         train_loss, valid_loss

@@ -1,7 +1,5 @@
 import torch
 from torch import nn
-from torch.autograd import Variable
-
 
 class ConvBlock(nn.Module):
     def __init__(self, in_c, out_c):
@@ -16,11 +14,11 @@ class ConvBlock(nn.Module):
         return self.relu(x)
 
 class ConvTransposeBlock(nn.Module):
-    def __init__(self, in_c, out_c):
+    def __init__(self, in_c, out_c, activation):
         super().__init__()
         self.conv_t = nn.ConvTranspose2d(in_c, out_c, (4, 4), (2, 2), (1,))
-        self.bn = nn.BatchNorm2d(out_c)
-        self.relu = nn.ReLU()
+        # self.bn = nn.BatchNorm2d(out_c)
+        self.relu = activation
 
     def forward(self, x):
         x = self.conv_t(x)
@@ -47,10 +45,9 @@ class AEModel(nn.Module):
         self.project = nn.Linear(self.z_size, self.feature_volume)
 
         self.decoder = nn.Sequential(
-            ConvTransposeBlock(64, 32),
-            ConvTransposeBlock(32, 16),
-            ConvTransposeBlock(16, 3),
-            nn.Sigmoid()
+            ConvTransposeBlock(64, 32, nn.ReLU()),
+            ConvTransposeBlock(32, 16, nn.ReLU()),
+            ConvTransposeBlock(16, 3, nn.Sigmoid())
         )
 
     def forward(self, x):
@@ -59,7 +56,7 @@ class AEModel(nn.Module):
 
         mean, logvar = self.q_mean(flatten), self.q_logvar(flatten)
         std = torch.exp(0.5 * logvar)
-        eps = torch.randn(std.size(), dtype=torch.float32, requires_grad=False)
+        eps = torch.randn(std.size())
         if next(self.parameters()).is_cuda: eps = eps.to("cuda")
         z = eps * std + mean
 
@@ -69,7 +66,7 @@ class AEModel(nn.Module):
 
     @classmethod
     def reconstruction_loss(cls, x_reconstructed, x):
-        return nn.BCELoss()(x_reconstructed, x) * x.size(0)
+        return nn.BCELoss(reduction="sum")(x_reconstructed, x) / x.size(0)
 
     @classmethod
     def kl_divergence_loss(cls, mean, logvar):
