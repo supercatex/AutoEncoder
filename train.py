@@ -55,6 +55,7 @@ for epoch in range(begin, begin + n_epochs, 1):
     # Training
     model.train()
     train_loss = 0.0
+    train_loss_1, train_loss_2 = 0.0, 0.0
     for batch, data in enumerate(train_loader):
         x, _ = data
         x = x.to(dev)
@@ -70,10 +71,13 @@ for epoch in range(begin, begin + n_epochs, 1):
         optimizer.step()
 
         train_loss += loss.item()
+        train_loss_1 += reconstruction_loss.item()
+        train_loss_2 += kl_divergence_loss.item()
 
     # Validating
     model.eval()
     valid_loss = 0.0
+    valid_loss_1, valid_loss_2 = 0.0, 0.0
     for batch, data in enumerate(valid_loader):
         x, _ = data
         x = x.to(dev)
@@ -85,11 +89,17 @@ for epoch in range(begin, begin + n_epochs, 1):
         loss = reconstruction_loss + kl_divergence_loss
 
         valid_loss += loss.item()
+        valid_loss_1 += reconstruction_loss.item()
+        valid_loss_2 += kl_divergence_loss.item()
 
     # Saving model and logging training history.
     torch.save(model.state_dict(), model.name + ".pth")
     train_loss /= len(train_data)
     valid_loss /= len(valid_data)
+    train_loss_1 /= len(train_data)
+    train_loss_2 /= len(train_data)
+    valid_loss_1 /= len(train_data)
+    valid_loss_2 /= len(train_data)
     print("Epoch: %d/%d, Train_Loss: %.6f, Valid_Loss: %.6f" % (
         epoch, n_epochs,
         train_loss, valid_loss
@@ -97,6 +107,14 @@ for epoch in range(begin, begin + n_epochs, 1):
     writer.add_scalars("loss", {
         "train_loss": train_loss,
         "valid_loss": valid_loss
+    }, epoch)
+    writer.add_scalars("reconstruction_loss", {
+        "train_loss": train_loss_1,
+        "valid_loss": valid_loss_1
+    }, epoch)
+    writer.add_scalars("kld_loss", {
+        "train_loss": train_loss_2,
+        "valid_loss": valid_loss_2
     }, epoch)
 
     if epoch == 1 or epoch % 10 == 0:
