@@ -18,12 +18,12 @@ class ConvTransposeBlock(nn.Module):
         super().__init__()
         self.conv_t = nn.ConvTranspose2d(in_c, out_c, (4, 4), (2, 2), (1,))
         # self.bn = nn.BatchNorm2d(out_c)
-        self.relu = activation
+        self.activation = activation
 
     def forward(self, x):
         x = self.conv_t(x)
-        x = self.bn(x)
-        return self.relu(x)
+        # x = self.bn(x)
+        return self.activation(x)
 
 class AEModel(nn.Module):
     def __init__(self):
